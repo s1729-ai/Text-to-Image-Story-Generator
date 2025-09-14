@@ -1,1 +1,1 @@
-# Text-to-Image-Story-Generator
+# Text-to-image-Story-generator

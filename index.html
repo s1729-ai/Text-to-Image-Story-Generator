@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AI Storyteller</title>
+    <!-- Load Tailwind CSS and Font -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #4299e1;
+            --secondary-color: #3182ce;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(to bottom right, #4299e1, #667eea);
+            min-height: 100vh;
+        }
+
+        .card {
+            background: white;
+            border-radius: 1rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+        }
+
+        .btn {
+            transition: all 0.3s ease;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3182ce;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .image-container {
+            position: relative;
+            overflow: hidden;
+            border-radius: 0.5rem;
+        }
+
+        .image-container img {
+            transition: transform 0.3s ease;
+        }
+
+        .image-container:hover img {
+            transform: scale(1.05);
+        }
+
+        .fade-in {
+            animation: fadeIn 0.5s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+    <!-- Main Container -->
+    <div id="app" class="min-h-screen bg-gradient-to-br from-blue-500 to-purple-600">
+        <div class="container mx-auto px-4 py-8">
+            <!-- Header -->
+            <header class="text-center mb-8">
+                <h1 class="text-4xl font-bold text-white mb-4 animate-fade-in">AI Storyteller</h1>
+                <p class="text-white text-lg">Create amazing stories with AI-generated illustrations</p>
+                <div id="serverStatus" class="mt-2 text-sm text-white opacity-75"></div>
+            </header>
+
+        <!-- Story Input Form -->
+        <div id="storyForm" class="card max-w-2xl mx-auto p-6 mb-8 fade-in">
+            <form id="generateStoryForm" class="space-y-6">
+                <div class="space-y-2">
+                    <label class="block text-gray-700 font-semibold">Your Story Idea</label>
+                    <textarea 
+                        id="storyIdea" 
+                        class="w-full h-32 p-3 border rounded-lg focus:ring-2 focus:ring-blue-400"
+                        placeholder="Once upon a time..."
+                        required
+                    ></textarea>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-gray-700 font-semibold">Genre</label>
+                        <select id="genre" class="w-full p-2 border rounded-lg">
+                            <option value="fantasy">Fantasy</option>
+                            <option value="sci-fi">Science Fiction</option>
+                            <option value="mystery">Mystery</option>
+                            <option value="adventure">Adventure</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-gray-700 font-semibold">Tone</label>
+                        <select id="tone" class="w-full p-2 border rounded-lg">
+                            <option value="adventurous">Adventurous</option>
+                            <option value="mysterious">Mysterious</option>
+                            <option value="humorous">Humorous</option>
+                            <option value="dramatic">Dramatic</option>
+                        </select>
+                    </div>
+                </div>
+
+                <button 
+                    type="submit" 
+                    class="w-full bg-blue-500 text-white py-3 px-6 rounded-lg font-semibold hover:bg-blue-600 btn"
+                >
+                    Generate Story
+                </button>
+            </form>
+        </div>
+
+        <!-- Story Display -->
+        <div id="storyDisplay" class="max-w-4xl mx-auto space-y-8 hidden">
+            <h2 id="storyTitle" class="text-3xl font-bold text-white text-center mb-8"></h2>
+            <div id="scenes" class="space-y-8"></div>
+            <button 
+                id="resetButton"
+                class="mx-auto block bg-white text-blue-500 py-2 px-6 rounded-lg font-semibold hover:bg-gray-100 btn"
+            >
+                Create New Story
+            </button>
+        </div>
+
+        <!-- Loading State -->
+        <div id="loading" class="text-center py-12 hidden">
+            <div class="spinner mx-auto mb-4"></div>
+            <p class="text-white">Generating your story...</p>
+        </div>
+
+        <!-- Error Display -->
+        <div id="error" class="max-w-2xl mx-auto mt-4 hidden">
+            <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative">
+                <span id="errorMessage"></span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Helper functions
+        const show = (element) => element.classList.remove('hidden');
+        const hide = (element) => element.classList.add('hidden');
+        
+        // Get DOM elements
+        const storyForm = document.getElementById('storyForm');
+        const storyDisplay = document.getElementById('storyDisplay');
+        const loading = document.getElementById('loading');
+        const error = document.getElementById('error');
+        const errorMessage = document.getElementById('errorMessage');
+        const scenes = document.getElementById('scenes');
+        const storyTitle = document.getElementById('storyTitle');
+        const resetButton = document.getElementById('resetButton');
+        const form = document.getElementById('generateStoryForm');
+        const serverStatus = document.getElementById('serverStatus');
+
+        // Event Listeners
+        form.addEventListener('submit', handleSubmit);
+        resetButton.addEventListener('click', resetForm);
+
+        // Handle form submission
+        async function handleSubmit(e) {
+            e.preventDefault();
+            
+            const formData = {
+                idea: document.getElementById('storyIdea').value,
+                genre: document.getElementById('genre').value,
+                tone: document.getElementById('tone').value,
+                audience: 'general',
+                art_style: 'realistic'
+            };
+
+            try {
+                hide(error);
+                hide(storyForm);
+                show(loading);
+
+                const response = await fetch('http://127.0.0.1:5000/api/generate-story', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(formData)
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to generate story');
+                }
+
+                displayStory(data);
+            } catch (err) {
+                showError(err.message);
+                show(storyForm);
+            } finally {
+                hide(loading);
+            }
+        }
+
+        // Display the generated story
+        function displayStory(story) {
+            storyTitle.textContent = story.title;
+            scenes.innerHTML = story.scenes.map((scene, index) => `
+                <div class="card bg-white p-6 fade-in">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="image-container">
+                            <img 
+                                src="${scene.image_url}" 
+                                alt="Scene ${scene.scene_number}" 
+                                class="w-full h-64 object-cover rounded-lg"
+                            >
+                        </div>
+                        <div>
+                            <h3 class="text-xl font-bold text-gray-800 mb-4">
+                                Scene ${scene.scene_number}: ${scene.title}
+                            </h3>
+                            <p class="text-gray-600">${scene.text}</p>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+
+            hide(storyForm);
+            show(storyDisplay);
+        }
+
+        // Show error message
+        function showError(message) {
+            errorMessage.textContent = message;
+            show(error);
+        }
+
+        // Reset form
+        function resetForm() {
+            form.reset();
+            hide(storyDisplay);
+            show(storyForm);
+            hide(error);
+        }
+
+        // Check server status
+        async function checkServer() {
+            try {
+                serverStatus.textContent = 'Checking server status...';
+                const response = await fetch('http://127.0.0.1:5000/api/health');
+                if (!response.ok) throw new Error('Server not responding');
+                const data = await response.json();
+                serverStatus.textContent = '✅ Server is running';
+                serverStatus.style.color = '#4ade80';  // green-400
+                show(storyForm);
+            } catch (err) {
+                console.error('Server error:', err);
+                serverStatus.innerHTML = '❌ Server is not running. Please make sure to start the server first:<br>' +
+                    'Double-click the <strong>start.bat</strong> file or run <strong>python app.py</strong>';
+                serverStatus.style.color = '#f87171';  // red-400
+                showError('Cannot connect to the server. Please make sure the server is running.');
+            }
+        }
+
+        // Check server status when page loads and every 5 seconds
+        window.addEventListener('load', () => {
+            checkServer();
+            setInterval(checkServer, 5000);
+        });
+    </script>
+</body>
+</html>
